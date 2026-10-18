@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useMemo, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -46,7 +46,7 @@ interface AttendanceRecord {
   timeOut: string;
   workingHours: string;
   breakTime: string;
-  status: "Present" | "Late (15mins)" | "Late (5mins)" | "Absent";
+  status: "Present" | "Late (15mins)" | "Late (10mins)" | "Late (5mins)" | "Absent" | string;
 }
 
 const ATTENDANCE_RECORDS: AttendanceRecord[] = [
@@ -100,6 +100,66 @@ const ATTENDANCE_RECORDS: AttendanceRecord[] = [
     breakTime: "1 hr",
     status: "Present",
   },
+  {
+    id: "rec-6",
+    date: "July 3, 2026",
+    day: "Friday",
+    timeIn: "8:01 AM",
+    timeOut: "5:00 PM",
+    workingHours: "8 hrs 59 mins",
+    breakTime: "1 hr",
+    status: "Present",
+  },
+  {
+    id: "rec-7",
+    date: "July 2, 2026",
+    day: "Thursday",
+    timeIn: "8:10 AM",
+    timeOut: "5:00 PM",
+    workingHours: "8 hrs 50 mins",
+    breakTime: "1 hr",
+    status: "Late (10mins)",
+  },
+  {
+    id: "rec-8",
+    date: "July 1, 2026",
+    day: "Wednesday",
+    timeIn: "---",
+    timeOut: "---",
+    workingHours: "No record",
+    breakTime: "---",
+    status: "Absent",
+  },
+  {
+    id: "rec-9",
+    date: "July 13, 2026",
+    day: "Monday",
+    timeIn: "7:59 AM",
+    timeOut: "5:00 PM",
+    workingHours: "9 hrs 1 min",
+    breakTime: "1 hr",
+    status: "Present",
+  },
+  {
+    id: "rec-10",
+    date: "July 14, 2026",
+    day: "Tuesday",
+    timeIn: "8:00 AM",
+    timeOut: "5:04 PM",
+    workingHours: "9 hrs 4 mins",
+    breakTime: "1 hr",
+    status: "Present",
+  },
+  {
+    id: "rec-11",
+    date: "July 15, 2026",
+    day: "Wednesday",
+    timeIn: "7:58 AM",
+    timeOut: "5:00 PM",
+    workingHours: "9 hrs 2 mins",
+    breakTime: "1 hr",
+    status: "Present",
+  },
 ];
 
 function AttendancePageContent() {
@@ -118,8 +178,15 @@ function AttendancePageContent() {
   const [records, setRecords] = useState<AttendanceRecord[]>(ATTENDANCE_RECORDS);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [calendarMonth, setCalendarMonth] = useState("July 2025");
+
+  // Dynamic Calendar Navigation & Selection States
+  const [calDate, setCalDate] = useState<Date>(new Date(2026, 6, 10)); // July 10, 2026
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedMonthRecord, setSelectedMonthRecord] = useState("July 2026");
+
+  // Pagination for Attendance Records table
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -162,54 +229,159 @@ function AttendancePageContent() {
     }
   }, [searchParams]);
 
-  // Calendar days grid
-  const calendarDays = [
-    { day: 29, isCurrentMonth: false },
-    { day: 30, isCurrentMonth: false },
-    { day: 1, isCurrentMonth: true },
-    { day: 2, isCurrentMonth: true },
-    { day: 3, isCurrentMonth: true },
-    { day: 4, isCurrentMonth: true },
-    { day: 5, isCurrentMonth: true },
-    { day: 6, isCurrentMonth: true },
-    { day: 7, isCurrentMonth: true },
-    { day: 8, isCurrentMonth: true },
-    { day: 9, isCurrentMonth: true },
-    { day: 10, isCurrentMonth: true, isToday: true },
-    { day: 11, isCurrentMonth: true },
-    { day: 12, isCurrentMonth: true },
-    { day: 13, isCurrentMonth: true },
-    { day: 14, isCurrentMonth: true },
-    { day: 15, isCurrentMonth: true },
-    { day: 16, isCurrentMonth: true },
-    { day: 17, isCurrentMonth: true },
-    { day: 18, isCurrentMonth: true },
-    { day: 19, isCurrentMonth: true },
-    { day: 20, isCurrentMonth: true },
-    { day: 21, isCurrentMonth: true },
-    { day: 22, isCurrentMonth: true },
-    { day: 23, isCurrentMonth: true },
-    { day: 24, isCurrentMonth: true },
-    { day: 25, isCurrentMonth: true },
-    { day: 26, isCurrentMonth: true },
-    { day: 27, isCurrentMonth: true },
-    { day: 28, isCurrentMonth: true },
-    { day: 29, isCurrentMonth: true },
-    { day: 30, isCurrentMonth: true },
-    { day: 31, isCurrentMonth: true },
-    { day: 1, isCurrentMonth: false },
-    { day: 2, isCurrentMonth: false },
-  ];
+  // Dynamic Calendar Calculation
+  const calendarMonthLabel = useMemo(() => {
+    return calDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  }, [calDate]);
 
-  const filteredRecords = records.filter((r) => {
-    const matchStatus = statusFilter === "All" || r.status.includes(statusFilter);
-    const matchSearch =
-      searchTerm.trim() === "" ||
-      r.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.day.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.status.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+  const handlePrevMonth = () => {
+    setCalDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCalDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  };
+
+  const handleGoToToday = () => {
+    const today = new Date(2026, 6, 10);
+    setCalDate(today);
+    setSelectedDate("July 10, 2026");
+    setCurrentPage(1);
+  };
+
+  interface CalendarCell {
+    day: number;
+    month: number;
+    year: number;
+    dateStr: string;
+    isCurrentMonth: boolean;
+    isToday: boolean;
+    record?: AttendanceRecord;
+  }
+
+  const calendarGrid = useMemo<CalendarCell[]>(() => {
+    const year = calDate.getFullYear();
+    const month = calDate.getMonth();
+
+    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sunday
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+    const prevMonthLastDay = new Date(year, month, 0).getDate();
+
+    const cells: CalendarCell[] = [];
+
+    // Prev month padding
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      const dayNum = prevMonthLastDay - i;
+      const prevDate = new Date(year, month - 1, dayNum);
+      const dateStr = prevDate.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+      const record = records.find((r) => r.date === dateStr);
+      cells.push({
+        day: dayNum,
+        month: prevDate.getMonth(),
+        year: prevDate.getFullYear(),
+        dateStr,
+        isCurrentMonth: false,
+        isToday: false,
+        record,
+      });
+    }
+
+    // Current month days
+    for (let i = 1; i <= lastDayOfMonth; i++) {
+      const curDate = new Date(year, month, i);
+      const dateStr = curDate.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+      const record = records.find((r) => r.date === dateStr);
+      const isToday = year === 2026 && month === 6 && i === 10;
+      cells.push({
+        day: i,
+        month,
+        year,
+        dateStr,
+        isCurrentMonth: true,
+        isToday,
+        record,
+      });
+    }
+
+    // Next month padding to reach 35 or 42 cells
+    const remainingCells = (7 - (cells.length % 7)) % 7;
+    const targetTotal = cells.length + remainingCells < 35 ? 35 : cells.length + remainingCells;
+    const nextDaysNeeded = targetTotal - cells.length;
+
+    for (let i = 1; i <= nextDaysNeeded; i++) {
+      const nextDate = new Date(year, month + 1, i);
+      const dateStr = nextDate.toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+      const record = records.find((r) => r.date === dateStr);
+      cells.push({
+        day: i,
+        month: nextDate.getMonth(),
+        year: nextDate.getFullYear(),
+        dateStr,
+        isCurrentMonth: false,
+        isToday: false,
+        record,
+      });
+    }
+
+    return cells;
+  }, [calDate, records]);
+
+  // Selected day record info
+  const selectedDayRecord = useMemo(() => {
+    if (!selectedDate) return null;
+    return records.find((r) => r.date === selectedDate) || null;
+  }, [selectedDate, records]);
+
+  // Filtered records based on selected date, status, search, and month
+  const filteredRecords = useMemo(() => {
+    return records.filter((r) => {
+      // 1. If calendar date is selected, prioritize it
+      if (selectedDate && r.date !== selectedDate) {
+        return false;
+      }
+      // 2. Month dropdown filter (only if specific day not selected)
+      if (!selectedDate && selectedMonthRecord && selectedMonthRecord !== "All") {
+        if (!r.date.includes(selectedMonthRecord)) {
+          return false;
+        }
+      }
+      // 3. Status filter
+      if (statusFilter !== "All" && !r.status.toLowerCase().includes(statusFilter.toLowerCase())) {
+        return false;
+      }
+      // 4. Search input
+      if (searchTerm.trim() !== "") {
+        const query = searchTerm.toLowerCase();
+        const matches =
+          r.date.toLowerCase().includes(query) ||
+          r.day.toLowerCase().includes(query) ||
+          r.status.toLowerCase().includes(query) ||
+          r.timeIn.toLowerCase().includes(query) ||
+          r.timeOut.toLowerCase().includes(query);
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [records, selectedDate, selectedMonthRecord, statusFilter, searchTerm]);
+
+  // Table pagination
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / itemsPerPage));
+  const paginatedRecords = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredRecords.slice(start, start + itemsPerPage);
+  }, [filteredRecords, currentPage, itemsPerPage]);
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -561,24 +733,52 @@ function AttendancePageContent() {
             {/* 2. Attendance Calendar */}
             <div className="bg-white rounded-[24px] sm:rounded-[28px] p-5 shadow-[0_4px_18px_rgba(0,0,0,0.03)] border border-neutral-200/80">
               <div className="flex items-center justify-between pb-2 border-b border-neutral-100">
-                <h3 className="text-xs sm:text-[13px] font-bold text-neutral-900">
-                  Attendance Calendar
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs sm:text-[13px] font-bold text-neutral-900">
+                    Attendance Calendar
+                  </h3>
+                  {selectedDate && (
+                    <span className="text-[10px] font-semibold bg-sky-50 text-[#0284c7] px-2 py-0.5 rounded-full border border-sky-200">
+                      Day Selected
+                    </span>
+                  )}
+                </div>
+                {selectedDate && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(null)}
+                    className="text-[11px] font-medium text-neutral-500 hover:text-black cursor-pointer underline"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
 
               {/* Month Header */}
               <div className="flex items-center justify-between mt-3 mb-2 px-1">
                 <button
                   type="button"
-                  onClick={() => setCalendarMonth("June 2025")}
+                  onClick={handlePrevMonth}
+                  aria-label="Previous month"
                   className="p-1 hover:bg-neutral-100 rounded-md transition cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4 text-neutral-600" />
                 </button>
-                <span className="font-bold text-xs text-neutral-800">{calendarMonth}</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-xs text-neutral-800">{calendarMonthLabel}</span>
+                  <button
+                    type="button"
+                    onClick={handleGoToToday}
+                    title="Jump to July 2026"
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold cursor-pointer transition"
+                  >
+                    Today
+                  </button>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setCalendarMonth("August 2025")}
+                  onClick={handleNextMonth}
+                  aria-label="Next month"
                   className="p-1 hover:bg-neutral-100 rounded-md transition cursor-pointer"
                 >
                   <ChevronRight className="w-4 h-4 text-neutral-600" />
@@ -598,22 +798,120 @@ function AttendancePageContent() {
 
               {/* Grid */}
               <div className="grid grid-cols-7 text-center text-xs gap-y-1">
-                {calendarDays.map((d, idx) => (
-                  <div key={idx} className="flex justify-center items-center py-0.5">
-                    <span
-                      className={`w-6 h-6 flex items-center justify-center rounded-full text-[11px] font-medium ${
-                        d.isToday
-                          ? "bg-[#0284c7] text-white font-bold shadow-sm"
-                          : d.isCurrentMonth
-                          ? "text-neutral-800"
-                          : "text-neutral-300"
-                      }`}
-                    >
-                      {d.day}
-                    </span>
-                  </div>
-                ))}
+                {calendarGrid.map((cell, idx) => {
+                  const isSelected = selectedDate === cell.dateStr;
+                  const hasRecord = !!cell.record;
+                  const status = cell.record?.status;
+
+                  return (
+                    <div key={idx} className="flex flex-col justify-center items-center py-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedDate === cell.dateStr) {
+                            setSelectedDate(null);
+                          } else {
+                            setSelectedDate(cell.dateStr);
+                            setCurrentPage(1);
+                          }
+                        }}
+                        className={`w-7 h-7 flex flex-col items-center justify-center rounded-full text-[11px] font-medium transition cursor-pointer relative ${
+                          cell.isToday
+                            ? "bg-[#0284c7] text-white font-bold shadow-sm"
+                            : isSelected
+                            ? "ring-2 ring-neutral-900 bg-neutral-100 font-bold text-neutral-900"
+                            : cell.isCurrentMonth
+                            ? "text-neutral-800 hover:bg-neutral-100"
+                            : "text-neutral-300 hover:text-neutral-500"
+                        }`}
+                        title={`${cell.dateStr}${
+                          cell.record
+                            ? ` - ${cell.record.status} (${cell.record.timeIn} - ${cell.record.timeOut})`
+                            : " (No record)"
+                        }`}
+                      >
+                        <span className="leading-none">{cell.day}</span>
+                        {/* Attendance status dot */}
+                        {hasRecord && (
+                          <span
+                            className={`w-1 h-1 rounded-full absolute bottom-0.5 ${
+                              cell.isToday
+                                ? "bg-white"
+                                : status === "Present"
+                                ? "bg-emerald-500"
+                                : status?.includes("Late")
+                                ? "bg-amber-500"
+                                : "bg-rose-500"
+                            }`}
+                          />
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Status Legend */}
+              <div className="mt-3 pt-2.5 border-t border-neutral-100 flex items-center justify-between text-[10px] text-neutral-500">
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span>Present</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span>Late</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  <span>Absent</span>
+                </div>
+              </div>
+
+              {/* Selected Day Inspector Card */}
+              {selectedDate && (
+                <div className="mt-3 p-3 bg-neutral-50 rounded-2xl border border-neutral-200/80 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-neutral-900">{selectedDate}</span>
+                    {selectedDayRecord ? (
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          selectedDayRecord.status === "Present"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : selectedDayRecord.status.includes("Late")
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-rose-100 text-rose-800"
+                        }`}
+                      >
+                        {selectedDayRecord.status}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-neutral-400 font-medium bg-neutral-200/70 px-2 py-0.5 rounded-full">
+                        No record
+                      </span>
+                    )}
+                  </div>
+                  {selectedDayRecord ? (
+                    <div className="grid grid-cols-3 gap-1 mt-2.5 text-[11px] text-neutral-600 bg-white p-2 rounded-xl border border-neutral-100">
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block">Time In</span>
+                        <span className="font-semibold text-neutral-800">{selectedDayRecord.timeIn}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block">Time Out</span>
+                        <span className="font-semibold text-neutral-800">{selectedDayRecord.timeOut}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block">Hours</span>
+                        <span className="font-semibold text-neutral-800">{selectedDayRecord.workingHours}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-neutral-500 mt-1.5">
+                      No attendance record logged for this day (weekend or non-working day).
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 3. Today's Schedule */}
@@ -679,16 +977,35 @@ function AttendancePageContent() {
               <div>
                 {/* Header & Controls */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-neutral-100">
-                  <h3 className="text-base font-bold text-neutral-900">Attendance Records</h3>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h3 className="text-base font-bold text-neutral-900">Attendance Records</h3>
+                    {selectedDate && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 border border-sky-200 text-[#0284c7] text-xs font-semibold rounded-lg">
+                        <span>Day: {selectedDate}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDate(null)}
+                          className="hover:text-black transition cursor-pointer"
+                          title="Clear date filter"
+                        >
+                          <XIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
                     {/* Month Picker */}
                     <div className="relative">
                       <select
                         value={selectedMonthRecord}
-                        onChange={(e) => setSelectedMonthRecord(e.target.value)}
+                        onChange={(e) => {
+                          setSelectedMonthRecord(e.target.value);
+                          setCurrentPage(1);
+                        }}
                         className="text-xs font-medium text-neutral-700 bg-white border border-neutral-300 rounded-xl px-3 py-1.5 pr-7 outline-none appearance-none hover:border-neutral-400 cursor-pointer"
                       >
+                        <option value="All">All Months</option>
                         <option value="July 2026">July 2026</option>
                         <option value="June 2026">June 2026</option>
                         <option value="May 2026">May 2026</option>
@@ -700,7 +1017,10 @@ function AttendancePageContent() {
                     <div className="relative">
                       <select
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
+                        onChange={(e) => {
+                          setStatusFilter(e.target.value);
+                          setCurrentPage(1);
+                        }}
                         className="text-xs font-medium text-neutral-700 bg-white border border-neutral-300 rounded-xl px-3 py-1.5 pr-7 outline-none appearance-none hover:border-neutral-400 cursor-pointer"
                       >
                         <option value="All">All Status</option>
@@ -716,7 +1036,10 @@ function AttendancePageContent() {
                       <input
                         type="text"
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => {
+                          setSearchTerm(e.target.value);
+                          setCurrentPage(1);
+                        }}
                         placeholder="Search records"
                         className="text-xs bg-white border border-neutral-300 rounded-xl pl-8 pr-3 py-1.5 outline-none focus:border-black w-36 sm:w-44"
                       />
@@ -738,56 +1061,95 @@ function AttendancePageContent() {
 
                 {/* Table Records */}
                 <div className="divide-y divide-neutral-100 text-xs">
-                  {filteredRecords.map((r) => (
-                    <div
-                      key={r.id}
-                      className="py-3 px-4 grid grid-cols-12 items-center hover:bg-neutral-50/70 transition"
-                    >
-                      <span className="col-span-2 font-medium text-neutral-900">{r.date}</span>
-                      <span className="col-span-2 text-neutral-500">{r.day}</span>
-                      <span className="col-span-2 text-center text-neutral-700">{r.timeIn}</span>
-                      <span className="col-span-2 text-center text-neutral-700">{r.timeOut}</span>
-                      <span className="col-span-2 text-center text-neutral-700">{r.workingHours}</span>
-                      <span className="col-span-1 text-center text-neutral-500">{r.breakTime}</span>
-                      <span className="col-span-1 text-right font-medium text-neutral-700">
-                        {r.status}
-                      </span>
+                  {paginatedRecords.length > 0 ? (
+                    paginatedRecords.map((r) => (
+                      <div
+                        key={r.id}
+                        className="py-3 px-4 grid grid-cols-12 items-center hover:bg-neutral-50/70 transition"
+                      >
+                        <span className="col-span-2 font-medium text-neutral-900">{r.date}</span>
+                        <span className="col-span-2 text-neutral-500">{r.day}</span>
+                        <span className="col-span-2 text-center text-neutral-700">{r.timeIn}</span>
+                        <span className="col-span-2 text-center text-neutral-700">{r.timeOut}</span>
+                        <span className="col-span-2 text-center text-neutral-700">{r.workingHours}</span>
+                        <span className="col-span-1 text-center text-neutral-500">{r.breakTime}</span>
+                        <span className="col-span-1 text-right">
+                          <span
+                            className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                              r.status === "Present"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : r.status.includes("Late")
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-rose-100 text-rose-800"
+                            }`}
+                          >
+                            {r.status}
+                          </span>
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center text-neutral-400">
+                      <p className="text-sm font-medium text-neutral-600">No attendance records found</p>
+                      <p className="text-xs text-neutral-400 mt-1">
+                        Try adjusting your search or clearing the active filters.
+                      </p>
+                      {(selectedDate || statusFilter !== "All" || searchTerm.trim() !== "") && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate(null);
+                            setStatusFilter("All");
+                            setSearchTerm("");
+                            setCurrentPage(1);
+                          }}
+                          className="mt-3 inline-flex items-center gap-1 text-xs text-[#0284c7] font-semibold hover:underline cursor-pointer"
+                        >
+                          Reset Filters
+                        </button>
+                      )}
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 
               {/* Table Footer */}
               <div className="pt-4 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-neutral-500 mt-4">
-                <p>Showing 1 to {filteredRecords.length} of 12 announcements</p>
+                <p>
+                  Showing {filteredRecords.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to{" "}
+                  {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length}{" "}
+                  attendance records
+                </p>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    className="p-1 rounded-lg border border-neutral-200 text-neutral-400 hover:text-black hover:border-neutral-300 cursor-pointer"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    aria-label="Previous page"
+                    className="p-1 rounded-lg border border-neutral-200 text-neutral-400 hover:text-black hover:border-neutral-300 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-7 h-7 rounded-lg text-xs font-semibold cursor-pointer transition ${
+                        currentPage === page
+                          ? "bg-neutral-900 text-white"
+                          : "hover:bg-neutral-100 text-neutral-600"
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
                   <button
                     type="button"
-                    className="w-7 h-7 rounded-lg bg-neutral-300 text-neutral-900 font-bold text-xs"
-                  >
-                    1
-                  </button>
-                  <button
-                    type="button"
-                    className="w-7 h-7 rounded-lg hover:bg-neutral-100 text-neutral-600 font-medium text-xs cursor-pointer"
-                  >
-                    2
-                  </button>
-                  <button
-                    type="button"
-                    className="w-7 h-7 rounded-lg hover:bg-neutral-100 text-neutral-600 font-medium text-xs cursor-pointer"
-                  >
-                    3
-                  </button>
-                  <button
-                    type="button"
-                    className="p-1 rounded-lg border border-neutral-200 text-neutral-400 hover:text-black hover:border-neutral-300 cursor-pointer"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    aria-label="Next page"
+                    className="p-1 rounded-lg border border-neutral-200 text-neutral-400 hover:text-black hover:border-neutral-300 disabled:opacity-30 disabled:pointer-events-none cursor-pointer transition"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>

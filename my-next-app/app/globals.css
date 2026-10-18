@@ -13,19 +13,25 @@
 }
 
 @keyframes floatSmooth {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(0px) scale(1);
   }
+
   50% {
     transform: translateY(-8px) scale(1.01);
   }
 }
 
 @keyframes pulseGlow {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 0.25;
     transform: scale(0.95);
   }
+
   50% {
     opacity: 0.45;
     transform: scale(1.05);
@@ -42,7 +48,7 @@
 
 /* Custom smooth transitions for inputs and buttons */
 input:-webkit-autofill,
-input:-webkit-autofill:hover, 
+input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
   -webkit-box-shadow: 0 0 0px 1000px white inset !important;
   box-shadow: 0 0 0px 1000px white inset !important;

@@ -112,7 +112,9 @@ function DashboardContent() {
       setEmployee({
         name: storedName,
         role: storedRole,
-        email: "aaron.tumaliuan@gmail.com",
+        email:
+          (typeof window !== "undefined" && localStorage.getItem("currentUserEmail")) ||
+          "aaron.tumaliuan@gmail.com",
         id: empParam || (typeof window !== "undefined" && localStorage.getItem("currentUserEmpId")) || "EMP-2026-904",
         avatar: "/assets/avatar-aaron.png",
       });

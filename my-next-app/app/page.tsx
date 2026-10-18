@@ -18,7 +18,9 @@ import {
   ShieldCheck,
   Users,
   ChevronRight,
-  BadgeCheck
+  BadgeCheck,
+  Briefcase,
+  Shield
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -70,6 +72,99 @@ function LoginPageContent() {
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
+
+  // Department Manager Verification Modal Flow
+  const [showManagerModal, setShowManagerModal] = useState(false);
+  const [managerStep, setManagerStep] = useState<"confirm" | "enterId">("confirm");
+  const [managerIdInput, setManagerIdInput] = useState("");
+  const [managerError, setManagerError] = useState("");
+  const [isVerifyingManager, setIsVerifyingManager] = useState(false);
+  const [verifiedManagerInfo, setVerifiedManagerInfo] = useState<{
+    id: string;
+    name: string;
+    role: string;
+    department_name?: string;
+    email: string;
+  } | null>(null);
+
+  const handleVerifyManagerId = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanId = managerIdInput.trim().toUpperCase();
+    if (!cleanId) {
+      setManagerError("Please enter your Department Manager ID.");
+      return;
+    }
+
+    setIsVerifyingManager(true);
+    setManagerError("");
+
+    try {
+      // 1. Check Supabase department_managers table
+      const { data, error } = await supabase
+        .from("department_managers")
+        .select("*")
+        .ilike("manager_id", cleanId)
+        .maybeSingle();
+
+      if (data) {
+        const info = {
+          id: data.manager_id,
+          name: data.name,
+          role: data.role || "Department Manager",
+          department_name: data.department_name || "Department Leadership",
+          email: data.email,
+        };
+        setVerifiedManagerInfo(info);
+
+        setTimeout(() => {
+          setShowManagerModal(false);
+          router.push(
+            `/manager-login?managerId=${encodeURIComponent(info.id)}&name=${encodeURIComponent(info.name)}&role=${encodeURIComponent(info.role)}&dept=${encodeURIComponent(info.department_name)}&email=${encodeURIComponent(info.email)}`
+          );
+        }, 700);
+        return;
+      }
+
+      // 2. Fallback check for seeded managers
+      const fallbackManagers = [
+        {
+          id: "MGR-2026-101",
+          name: "Victoria Mendoza",
+          role: "Creative Director & Design Manager",
+          department_name: "Creative & Design",
+          email: "victoria.mendoza@strideon.com",
+        },
+        {
+          id: "MGR-2026-102",
+          name: "Marcus Vance",
+          role: "Head of Product Management",
+          department_name: "Product & Specialist",
+          email: "marcus.vance@strideon.com",
+        },
+      ];
+
+      const foundFallback = fallbackManagers.find(
+        (m) => m.id.toUpperCase() === cleanId
+      );
+
+      if (foundFallback) {
+        setVerifiedManagerInfo(foundFallback);
+        setTimeout(() => {
+          setShowManagerModal(false);
+          router.push(
+            `/manager-login?managerId=${encodeURIComponent(foundFallback.id)}&name=${encodeURIComponent(foundFallback.name)}&role=${encodeURIComponent(foundFallback.role)}&dept=${encodeURIComponent(foundFallback.department_name)}&email=${encodeURIComponent(foundFallback.email)}`
+          );
+        }, 700);
+        return;
+      }
+
+      setManagerError("Manager ID not recognized in Strideon records. Please verify with HR.");
+    } catch {
+      setManagerError("Failed to verify Manager ID. Please check your network connection.");
+    } finally {
+      setIsVerifyingManager(false);
+    }
+  };
 
   // Helper to determine if an employee account has been activated & verified
   const checkEmployeeActivation = async (emp: EmployeeAccount): Promise<boolean> => {
@@ -681,6 +776,37 @@ function LoginPageContent() {
             </button>
           </form>
 
+          {/* Department Manager Portal Button */}
+          <div className="mt-3.5 space-y-2.5">
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-neutral-200" />
+              <span className="flex-shrink mx-3 text-[10.5px] font-semibold text-neutral-400 uppercase tracking-wider">
+                management portal
+              </span>
+              <div className="flex-grow border-t border-neutral-200" />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowManagerModal(true);
+                setManagerStep("confirm");
+                setManagerIdInput("");
+                setManagerError("");
+                setVerifiedManagerInfo(null);
+              }}
+              className="w-full bg-neutral-900 hover:bg-black text-white font-medium text-xs sm:text-sm py-2.5 sm:py-3 px-4 rounded-xl sm:rounded-full transition duration-150 shadow-sm flex items-center justify-between cursor-pointer border border-neutral-800 hover:border-neutral-700 group active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  <Briefcase className="w-3.5 h-3.5" />
+                </div>
+                <span className="font-semibold text-neutral-100">Department Manager Login</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:translate-x-0.5 group-hover:text-white transition-transform" />
+            </button>
+          </div>
+
           {/* Links & Sub-actions */}
           <div className="mt-4 space-y-2.5 text-center">
             <div>
@@ -803,6 +929,212 @@ function LoginPageContent() {
                   </button>
                 </div>
               </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* DEPARTMENT MANAGER VERIFICATION & ACCESS MODAL           */}
+      {/* ======================================================== */}
+      {showManagerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
+          <div className="bg-white text-neutral-900 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative border border-neutral-100 overflow-hidden">
+            {/* Top decorative accent */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-neutral-900 via-amber-500 to-neutral-900" />
+
+            {/* Close button */}
+            <button
+              onClick={() => {
+                setShowManagerModal(false);
+                setManagerStep("confirm");
+                setManagerError("");
+                setVerifiedManagerInfo(null);
+              }}
+              className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-700 p-1.5 rounded-full hover:bg-neutral-100 transition cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* STEP 1: ASK IF HE OR SHE IS A DEPT MANAGER */}
+            {managerStep === "confirm" && (
+              <div className="animate-fadeIn">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mb-4 shadow-sm">
+                  <Briefcase className="w-6 h-6 stroke-[1.8]" />
+                </div>
+
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-neutral-100 border border-neutral-200 text-[11px] font-semibold text-neutral-600 uppercase tracking-wider mb-2">
+                  <Shield className="w-3 h-3 text-neutral-500" />
+                  <span>Management Access</span>
+                </div>
+
+                <h3 className="text-xl sm:text-2xl font-bold text-neutral-900 tracking-tight">
+                  Are you a Department Manager?
+                </h3>
+
+                <p className="text-xs sm:text-sm text-neutral-600 mt-2 leading-relaxed">
+                  This portal is strictly reserved for appointed Department Managers and Executive Leadership. Managerial credentials are required to continue.
+                </p>
+
+                <div className="mt-4 p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-800 leading-normal flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
+                  <span>
+                    If you are a team member or regular employee, please return and use the standard Employee Login on the main screen.
+                  </span>
+                </div>
+
+                <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManagerStep("enterId");
+                      setManagerError("");
+                    }}
+                    className="w-full sm:flex-1 py-3 px-5 rounded-full bg-black hover:bg-neutral-800 text-white font-medium text-xs sm:text-sm transition shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+                  >
+                    <span>Yes, I am a Department Manager</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowManagerModal(false)}
+                    className="w-full sm:w-auto py-3 px-5 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-medium text-xs sm:text-sm transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: WHAT IS HIS/HER MANAGER ID & SUBMIT TO PROCEED TO LOGIN */}
+            {managerStep === "enterId" && (
+              <div className="animate-fadeIn">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[11px] font-semibold text-amber-800 uppercase tracking-wider">
+                    <BadgeCheck className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Manager Identification</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManagerStep("confirm");
+                      setManagerError("");
+                    }}
+                    className="text-xs text-neutral-400 hover:text-neutral-700 underline cursor-pointer"
+                  >
+                    ← Back
+                  </button>
+                </div>
+
+                <h3 className="text-xl sm:text-2xl font-bold text-neutral-900 tracking-tight">
+                  What is your Manager ID?
+                </h3>
+
+                <p className="text-xs sm:text-sm text-neutral-500 mt-1.5 leading-relaxed">
+                  Please enter your assigned Department Manager ID to proceed to login.
+                </p>
+
+                <form onSubmit={handleVerifyManagerId} className="mt-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                      Department Manager ID
+                    </label>
+                    <div className="relative flex items-center">
+                      <div className="absolute left-3.5 pointer-events-none text-neutral-400">
+                        <CreditCard className="w-4 h-4 stroke-[1.8]" />
+                      </div>
+                      <input
+                        type="text"
+                        value={managerIdInput}
+                        onChange={(e) => {
+                          setManagerIdInput(e.target.value.toUpperCase());
+                          if (managerError) setManagerError("");
+                        }}
+                        placeholder="e.g. MGR-2026-101"
+                        autoFocus
+                        className="w-full rounded-xl bg-neutral-50 border border-neutral-300 pl-10 pr-4 py-2.5 text-xs sm:text-sm text-neutral-900 placeholder:text-neutral-400 font-mono uppercase tracking-wider outline-none focus:bg-white focus:border-black focus:ring-1 focus:ring-black transition"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Select Registered Managers */}
+                  <div className="pt-1">
+                    <span className="text-[11px] font-medium text-neutral-400 block mb-1.5">
+                      Registered Department Managers:
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManagerIdInput("MGR-2026-101");
+                          setManagerError("");
+                        }}
+                        className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border transition text-left cursor-pointer ${
+                          managerIdInput === "MGR-2026-101"
+                            ? "border-amber-500 bg-amber-50 text-amber-900 font-semibold"
+                            : "border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-700"
+                        }`}
+                      >
+                        <span className="font-mono font-bold">MGR-2026-101</span>
+                        <span className="text-neutral-400 ml-1.5 font-normal">Victoria M. (Design)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setManagerIdInput("MGR-2026-102");
+                          setManagerError("");
+                        }}
+                        className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border transition text-left cursor-pointer ${
+                          managerIdInput === "MGR-2026-102"
+                            ? "border-amber-500 bg-amber-50 text-amber-900 font-semibold"
+                            : "border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-700"
+                        }`}
+                      >
+                        <span className="font-mono font-bold">MGR-2026-102</span>
+                        <span className="text-neutral-400 ml-1.5 font-normal">Marcus V. (Product)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Error Banner */}
+                  {managerError && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2 animate-fadeIn">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                      <span>{managerError}</span>
+                    </div>
+                  )}
+
+                  {/* Success Banner */}
+                  {verifiedManagerInfo && (
+                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 animate-fadeIn">
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                      <div>
+                        <span className="font-bold">Verified: </span>
+                        {verifiedManagerInfo.name} ({verifiedManagerInfo.role}) — Redirecting to login...
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Submit button */}
+                  <button
+                    type="submit"
+                    disabled={isVerifyingManager || !!verifiedManagerInfo}
+                    className="w-full mt-2 font-medium text-xs sm:text-sm py-3 rounded-full bg-black hover:bg-neutral-800 text-white transition duration-150 shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                  >
+                    {isVerifyingManager ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span>Submit &amp; Proceed to Login</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
             )}
           </div>
         </div>
