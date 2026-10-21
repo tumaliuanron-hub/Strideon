@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import emailjs from "@emailjs/browser";
+import { sendVerificationCode } from "@/lib/emailService";
 import { supabase } from "@/lib/supabase";
 import {
   CreditCard,
@@ -21,11 +21,9 @@ import {
   EyeOff,
   Building,
   KeyRound,
-  Send
+  Send,
+  Clock
 } from "lucide-react";
-
-const TEMPLATE_PRIMARY = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || "template_wyb7b2p";
-const TEMPLATE_SECOND = process.env.NEXT_PUBLIC_EMAILJS_SECOND_ACTIVATION_TEMPLATE_ID || "template_io88mhe";
 
 function ActivateAccountContent() {
   const searchParams = useSearchParams();
@@ -34,70 +32,82 @@ function ActivateAccountContent() {
   const [employeeId, setEmployeeId] = useState("");
   const [name, setName] = useState("");
   const [companyEmail, setCompanyEmail] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<"second" | "primary">("second");
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
 
-  // Pre-fill employee ID and name if passed from login or default to Red Reyes
+  // Load existing cooldown from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedUntil = localStorage.getItem("ems_activation_cooldown_until");
+      if (storedUntil) {
+        const remaining = Math.ceil((parseInt(storedUntil, 10) - Date.now()) / 1000);
+        if (remaining > 0) {
+          setCooldownSeconds(remaining);
+        } else {
+          localStorage.removeItem("ems_activation_cooldown_until");
+        }
+      }
+    }
+  }, []);
+
+  // Real-time 1-second countdown ticker
+  useEffect(() => {
+    if (cooldownSeconds <= 0) return;
+
+    const timer = setInterval(() => {
+      setCooldownSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("ems_activation_cooldown_until");
+          }
+          setErrorMessage("");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [cooldownSeconds]);
+
+  // Pre-fill employee ID and name from query params or recent session
+  // Email is intentionally NOT pre-filled so the employee enters it manually
   useEffect(() => {
     const idParam = searchParams.get("empId");
     const nameParam = searchParams.get("name");
-    const emailParam = searchParams.get("email");
-    const templateParam = searchParams.get("template");
 
     if (nameParam) {
       setName(nameParam);
-    } else if (idParam?.includes("815") || idParam?.toLowerCase().includes("red")) {
-      setName("Red Reyes");
-    } else if (!name) {
-      setName("Red Reyes");
+    } else if (typeof window !== "undefined") {
+      const storedName = localStorage.getItem("activationName");
+      if (storedName) setName(storedName);
     }
 
     if (idParam) {
       setEmployeeId(idParam);
-    } else if (!employeeId) {
-      setEmployeeId("EMP-2026-815");
+    } else if (typeof window !== "undefined") {
+      const storedId = localStorage.getItem("activationEmployeeId");
+      if (storedId) setEmployeeId(storedId);
     }
 
-    if (emailParam) {
-      setCompanyEmail(emailParam);
-    } else if (!companyEmail) {
-      setCompanyEmail("tumaliuanron@gmail.com");
-    }
-
-    if (templateParam === "primary") {
-      setSelectedTemplate("primary");
-    } else {
-      setSelectedTemplate("second");
-    }
+    // Keep email blank so the employee manually inputs their email address
+    setCompanyEmail("");
   }, [searchParams]);
 
-  const handleSelectEmployee = (type: "red" | "aaron") => {
-    if (type === "red") {
-      setEmployeeId("EMP-2026-815");
-      setName("Red Reyes");
-      setCompanyEmail("tumaliuanron@gmail.com");
-      setSelectedTemplate("second");
-    } else {
-      setEmployeeId("EMP-2026-904");
-      setName("Aaron Tumaliuan");
-      setCompanyEmail("aaron.tumaliuan@gmail.com");
-      setSelectedTemplate("primary");
-    }
-    setErrorMessage("");
-    setSuccessMessage("");
-  };
-
-  const handleAutofillDemo = () => {
-    handleSelectEmployee("red");
-  };
 
   const handleSendActivationCode = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
+
+    // Prevent submission while countdown cooldown is active
+    if (cooldownSeconds > 0) {
+      return;
+    }
 
     if (!name.trim()) {
       setErrorMessage("Please enter your full name.");
@@ -111,127 +121,64 @@ function ActivateAccountContent() {
 
     setLoading(true);
 
-    // Generate a 6-digit random code
-    const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
-
     try {
-      const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID || "service_wd58659";
-      // Using NEXT_PUBLIC_EMAILJS_TEMPLATE_ID (template_wyb7b2p)
-      const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID || "template_wyb7b2p";
-      const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY || "__idvrWgMFmv5b9fa";
+      const result = await sendVerificationCode({
+        email: companyEmail.trim(),
+        name: name.trim(),
+        employeeId: employeeId.trim() || "EMP-2026-815",
+        companyName: "Tumaliuan EMS",
+      });
 
-      // 1. Send via EmailJS using NEXT_PUBLIC_EMAILJS_TEMPLATE_ID (template_wyb7b2p)
-      try {
-        await emailjs.send(
-          serviceId,
-          templateId,
-          {
-            email: companyEmail.trim(),
-            name: name.trim(),
-            code: randomCode,
-            employee_id: employeeId.trim() || "EMP-2026-815",
-          },
-          publicKey
-        );
-      } catch (emailErr) {
-        console.warn("EmailJS primary dispatch error:", emailErr);
-      }
-
-      // 2. For Red Reyes, also ensure code is sent to tumaliuanron@gmail.com
       const isRedReyes =
         name.toLowerCase().includes("red") ||
         employeeId.includes("815") ||
         employeeId.toLowerCase().includes("red");
-
-      if (isRedReyes && companyEmail.trim().toLowerCase() !== "tumaliuanron@gmail.com") {
-        try {
-          await emailjs.send(
-            serviceId,
-            templateId,
-            {
-              email: "tumaliuanron@gmail.com",
-              name: name.trim(),
-              code: randomCode,
-              employee_id: employeeId.trim() || "EMP-2026-815",
-            },
-            publicKey
-          );
-        } catch (subErr) {
-          console.warn("Secondary copy to tumaliuanron@gmail.com skipped:", subErr);
-        }
-      }
-
-      // 3. Insert a new record into the Supabase users table with status set to 'pending' and the verification code saved
-      try {
-        const { error: supaError } = await supabase
-          .from("users")
-          .upsert(
-            {
-              name: name.trim(),
-              email: companyEmail.trim().toLowerCase(),
-              verification_code: randomCode,
-              status: "pending",
-            },
-            { onConflict: "email" }
-          );
-
-        if (supaError) {
-          console.warn("Supabase upsert warning:", supaError.message);
-        }
-
-        // Also update employees table status to pending
-        await supabase
-          .from("employees")
-          .update({ status: "pending" })
-          .eq("email", companyEmail.trim().toLowerCase());
-      } catch (supaErr) {
-        console.warn("Supabase network/client error (handled gracefully):", supaErr);
-      }
-
-      // Ensure this employee is marked unactivated/pending until code verification
-      const cleanEmpId = (employeeId.trim() || "EMP-2026-815").toUpperCase();
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`accountActivated_${cleanEmpId}`, "false");
-        if (cleanEmpId.includes("815") || isRedReyes) {
-          localStorage.setItem("accountActivated_EMP-2026-815", "false");
-        }
-        localStorage.setItem("activationCode", randomCode);
-        localStorage.setItem("activationEmail", companyEmail.trim());
-        localStorage.setItem("activationName", name.trim());
-        localStorage.setItem("activationEmployeeId", employeeId.trim());
-        localStorage.setItem("emailjsActiveTemplate", templateId);
-      }
 
       const recipientText =
         isRedReyes && companyEmail.trim().toLowerCase() !== "tumaliuanron@gmail.com"
           ? `${companyEmail.trim()} and tumaliuanron@gmail.com`
           : companyEmail.trim();
 
-      setSuccessMessage(
-        `Activation code dispatched to ${recipientText} and recorded in Supabase (status: pending)! Redirecting to verification...`
-      );
+      if (result.success) {
+        setSuccessMessage(
+          `Activation code dispatched to ${recipientText} and recorded in Supabase (status: pending)! Redirecting to verification...`
+        );
 
-      // Proceed to /verify
-      setTimeout(() => {
-        router.push(
-          `/verify?empId=${encodeURIComponent(employeeId.trim())}&email=${encodeURIComponent(companyEmail.trim())}`
-        );
-      }, 1000);
-    } catch (error) {
-      console.error("Failed to send email via EmailJS:", error);
-      // Fallback code stored so testing can continue
-      if (typeof window !== "undefined") {
-        localStorage.setItem("activationCode", randomCode);
-        localStorage.setItem("activationEmail", companyEmail.trim());
-        localStorage.setItem("activationName", name.trim());
-        localStorage.setItem("activationEmployeeId", employeeId.trim());
+        // Start 45s cooldown
+        setCooldownSeconds(45);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("ems_activation_cooldown_until", (Date.now() + 45 * 1000).toString());
+        }
+
+        // Proceed to /verify only when email sending succeeds
+        setTimeout(() => {
+          router.push(
+            `/verify?empId=${encodeURIComponent(employeeId.trim())}&email=${encodeURIComponent(companyEmail.trim())}`
+          );
+        }, 1200);
+      } else {
+        // Cooldown or error returned - do NOT redirect!
+        let waitSec = result.cooldownRemaining || 0;
+        if (!waitSec && result.message) {
+          const match = result.message.match(/wait (\d+) seconds/i);
+          if (match && match[1]) {
+            waitSec = parseInt(match[1], 10);
+          }
+        }
+
+        if (waitSec > 0) {
+          setCooldownSeconds(waitSec);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("ems_activation_cooldown_until", (Date.now() + waitSec * 1000).toString());
+          }
+          setErrorMessage("");
+        } else {
+          setErrorMessage(result.message || "Failed to dispatch email. Please check your credentials.");
+        }
       }
-      setErrorMessage("Could not send email directly. A fallback code has been generated. Redirecting to verification...");
-      setTimeout(() => {
-        router.push(
-          `/verify?empId=${encodeURIComponent(employeeId.trim())}&email=${encodeURIComponent(companyEmail.trim())}`
-        );
-      }, 1400);
+    } catch (error) {
+      console.error("Failed to send verification email:", error);
+      setErrorMessage("Could not send email directly. Please verify your connection.");
     } finally {
       setLoading(false);
     }
@@ -263,51 +210,27 @@ function ActivateAccountContent() {
             />
           </Link>
 
-          {/* Quick Demo Helper badges */}
+          {/* Header Status Badge */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => handleSelectEmployee("red")}
-              className={`text-[11px] font-medium tracking-wide uppercase px-2.5 py-1 rounded-full border transition flex items-center gap-1 cursor-pointer ${
-                name === "Red Reyes"
-                  ? "border-emerald-500/70 bg-emerald-950/70 text-emerald-300 shadow-sm"
-                  : "border-neutral-800 bg-neutral-950/80 text-neutral-400 hover:text-white hover:border-neutral-700"
-              }`}
-              title="Activate as Red Reyes with Template 2 (template_io88mhe)"
-            >
+            <span className="text-[11px] font-medium tracking-wide uppercase px-3 py-1 rounded-full border border-emerald-500/40 bg-emerald-950/50 text-emerald-400 flex items-center gap-1.5">
               <Sparkles className="w-3 h-3 text-emerald-400" />
-              <span>Red Reyes (T2)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleSelectEmployee("aaron")}
-              className={`text-[11px] font-medium tracking-wide uppercase px-2.5 py-1 rounded-full border transition flex items-center gap-1 cursor-pointer ${
-                name === "Aaron Tumaliuan"
-                  ? "border-sky-500/70 bg-sky-950/70 text-sky-300 shadow-sm"
-                  : "border-neutral-800 bg-neutral-950/80 text-neutral-400 hover:text-white hover:border-neutral-700"
-              }`}
-              title="Activate as Aaron Tumaliuan with Template 1 (template_wyb7b2p)"
-            >
-              <span>Aaron T. (T1)</span>
-            </button>
+              <span>Employee Activation</span>
+            </span>
           </div>
         </header>
 
         {/* Middle: Activate Your Account Title & Jordan Jumpman */}
-        <div className="relative z-10 my-8 lg:my-auto flex flex-col items-start w-full">
+        <div className="relative z-10 my-8 lg:my-auto flex flex-col items-center justify-center text-center w-full">
           {/* Main Title & Tagline matching mockup */}
-          <div className="max-w-md">
+          <div className="max-w-md flex flex-col items-center justify-center text-center">
             <h1 className="text-3xl sm:text-4xl lg:text-[46px] font-extrabold tracking-tight text-white leading-[1.12]">
-              Activate Your
-              <br />
-              Account
+              Activate Your Account
             </h1>
 
-            {/* Small accent line from mockup */}
-            <div className="w-10 h-[2px] bg-white/40 my-3.5" />
+            {/* Small accent line centered */}
+            <div className="w-10 h-[2px] bg-white/40 my-3.5 mx-auto" />
 
-            <p className="text-neutral-400 text-sm sm:text-[14.5px] leading-relaxed">
+            <p className="text-neutral-400 text-sm sm:text-[14.5px] leading-relaxed max-w-sm">
               Welcome to Strideon! Please activate your account using your Employee ID and Company Email to continue.
             </p>
           </div>
@@ -428,11 +351,19 @@ function ActivateAccountContent() {
             </p>
           </div>
 
-          {/* Error / Success Feedback */}
-          {errorMessage && (
+          {/* Real-Time Cooldown / Error Feedback */}
+          {(cooldownSeconds > 0 || errorMessage) && (
             <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200/80 text-red-700 text-xs flex items-center gap-2 animate-fadeIn">
               <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{errorMessage}</span>
+              <span>
+                {cooldownSeconds > 0 ? (
+                  <>
+                    Please wait <strong className="font-semibold text-red-800">{cooldownSeconds} seconds</strong> before requesting a new verification code.
+                  </>
+                ) : (
+                  errorMessage
+                )}
+              </span>
             </div>
           )}
 
@@ -444,56 +375,7 @@ function ActivateAccountContent() {
           )}
 
           {/* Activation Form with EmailJS integration */}
-          <form onSubmit={handleSendActivationCode} className="space-y-3.5">
-            {/* Employee Quick Select */}
-            <div className="rounded-xl border border-neutral-200/90 bg-neutral-50/80 p-2.5 space-y-1.5">
-              <div className="flex items-center justify-between px-0.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-600 flex items-center gap-1.5">
-                  <User className="w-3 h-3 text-neutral-500" />
-                  Preset Employee
-                </span>
-                <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                  {name === "Red Reyes" ? "Red Reyes • Template 2" : "Aaron T. • Template 1"}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleSelectEmployee("red")}
-                  className={`py-1.5 px-2.5 rounded-lg border text-left transition cursor-pointer flex flex-col ${
-                    name === "Red Reyes"
-                      ? "border-black bg-neutral-900 text-white shadow-sm"
-                      : "border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-800"
-                  }`}
-                >
-                  <span className="font-bold text-xs flex items-center justify-between">
-                    Red Reyes
-                    <span className="text-[9px] font-mono opacity-70">EMP-815</span>
-                  </span>
-                  <span className={`text-[10px] mt-0.5 ${name === "Red Reyes" ? "text-emerald-300" : "text-neutral-500"}`}>
-                    Template 2 (io88mhe)
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectEmployee("aaron")}
-                  className={`py-1.5 px-2.5 rounded-lg border text-left transition cursor-pointer flex flex-col ${
-                    name === "Aaron Tumaliuan"
-                      ? "border-black bg-neutral-900 text-white shadow-sm"
-                      : "border-neutral-200 bg-white hover:bg-neutral-100 text-neutral-800"
-                  }`}
-                >
-                  <span className="font-bold text-xs flex items-center justify-between">
-                    Aaron T.
-                    <span className="text-[9px] font-mono opacity-70">EMP-904</span>
-                  </span>
-                  <span className={`text-[10px] mt-0.5 ${name === "Aaron Tumaliuan" ? "text-sky-300" : "text-neutral-500"}`}>
-                    Template 1 (wyb7b2p)
-                  </span>
-                </button>
-              </div>
-            </div>
+          <form onSubmit={handleSendActivationCode} className="space-y-4">
 
             {/* Employee ID */}
             <div>
@@ -569,53 +451,29 @@ function ActivateAccountContent() {
               </div>
             </div>
 
-            {/* Email Template Selector */}
-            <div className="rounded-xl border border-neutral-200/90 bg-neutral-50/90 p-2.5 space-y-1.5">
-              <div className="flex items-center justify-between px-0.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-600 flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3 text-sky-500" />
-                  Email Template
-                </span>
-                <span className="text-[10px] font-mono text-neutral-500 bg-white border border-neutral-200 px-1.5 py-0.5 rounded">
-                  {selectedTemplate === "second" ? TEMPLATE_SECOND : TEMPLATE_PRIMARY}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-1 p-0.5 bg-neutral-200/70 rounded-lg text-xs">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTemplate("second")}
-                  className={`py-1.5 px-2 rounded-md font-medium text-xs transition cursor-pointer text-center ${
-                    selectedTemplate === "second"
-                      ? "bg-white text-neutral-900 shadow-sm"
-                      : "text-neutral-600 hover:text-neutral-900"
-                  }`}
-                >
-                  Template 2 (Active)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTemplate("primary")}
-                  className={`py-1.5 px-2 rounded-md font-medium text-xs transition cursor-pointer text-center ${
-                    selectedTemplate === "primary"
-                      ? "bg-white text-neutral-900 shadow-sm"
-                      : "text-neutral-600 hover:text-neutral-900"
-                  }`}
-                >
-                  Template 1 (Primary)
-                </button>
-              </div>
-            </div>
 
-            {/* Send Activation Code Button */}
+
+            {/* Send Activation Code Button (Disabled while Cooldown is active) */}
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-black hover:bg-neutral-800 active:scale-[0.99] text-white font-medium text-sm py-3 sm:py-3.5 rounded-xl sm:rounded-full transition duration-150 shadow-md shadow-black/10 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed mt-2"
+              disabled={loading || cooldownSeconds > 0}
+              className={`w-full font-medium text-sm py-3 sm:py-3.5 rounded-xl sm:rounded-full transition duration-150 shadow-md flex items-center justify-center gap-2 mt-2 ${
+                cooldownSeconds > 0
+                  ? "bg-neutral-200 text-neutral-400 border border-neutral-300 cursor-not-allowed shadow-none"
+                  : loading
+                  ? "bg-neutral-800 text-white cursor-wait opacity-80"
+                  : "bg-black hover:bg-neutral-800 active:scale-[0.99] text-white shadow-black/10 cursor-pointer"
+              }`}
             >
               {loading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   <span>Sending Activation Code...</span>
+                </div>
+              ) : cooldownSeconds > 0 ? (
+                <div className="flex items-center gap-2 font-mono">
+                  <Clock className="w-4 h-4 text-neutral-400" />
+                  <span>Please wait {cooldownSeconds}s</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">

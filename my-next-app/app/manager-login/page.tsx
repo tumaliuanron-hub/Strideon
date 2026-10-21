@@ -36,11 +36,11 @@ interface ManagerDetails {
 const SEEDED_MANAGERS: ManagerDetails[] = [
   {
     manager_id: "MGR-2026-101",
-    name: "Victoria Mendoza",
-    role: "Creative Director & Design Manager",
+    name: "Aaron Tumaliuan",
+    role: "Creative Director & Design Department Manager",
     department_name: "Creative & Design",
-    email: "victoria.mendoza@strideon.com",
-    phone: "+63 917 123 4567",
+    email: "aaron.tumaliuan@gmail.com",
+    phone: "+63 920 444 9904",
   },
   {
     manager_id: "MGR-2026-102",
@@ -275,17 +275,17 @@ function ManagerLoginContent() {
         </header>
 
         {/* Middle: Welcome message & Jordan Jumpman Centerpiece */}
-        <div className="relative z-10 my-8 lg:my-auto flex flex-col items-start w-full">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold uppercase tracking-wider mb-3">
+        <div className="relative z-10 my-8 lg:my-auto flex flex-col items-center justify-center text-center w-full">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold uppercase tracking-wider mb-3 mx-auto">
             <Briefcase className="w-3.5 h-3.5 text-amber-400" />
             <span>Executive & Leadership Portal</span>
           </div>
 
-          <div className="max-w-md">
+          <div className="max-w-md flex flex-col items-center justify-center text-center">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-[1.15]">
               Department Manager Access
             </h1>
-            <p className="mt-3 text-neutral-400 text-sm sm:text-[15px] leading-relaxed">
+            <p className="mt-3 text-neutral-400 text-sm sm:text-[15px] leading-relaxed max-w-sm">
               Welcome to the Strideon management suite. Oversee departmental operations, staff performance, and strategic goals.
             </p>
           </div>
@@ -404,7 +404,7 @@ function ManagerLoginContent() {
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h3 className="text-xs sm:text-sm font-bold text-neutral-900 truncate">
-                    {managerDetails?.name || "Victoria Mendoza"}
+                    {managerDetails?.name || "Aaron Tumaliuan"}
                   </h3>
                   <span className="text-[10px] font-mono bg-neutral-200/80 px-1.5 py-0.5 rounded text-neutral-700 font-semibold">
                     {managerId}
@@ -592,41 +592,14 @@ function ManagerLoginContent() {
               Select Department Manager
             </h3>
             <p className="text-xs text-neutral-500 mb-4">
-              Choose from registered Department Managers or enter an assigned Manager ID:
+              Enter your assigned Department Manager ID to switch account:
             </p>
-
-            {/* Manager choices */}
-            <div className="space-y-2 mb-4">
-              {SEEDED_MANAGERS.map((mgr) => (
-                <button
-                  key={mgr.manager_id}
-                  type="button"
-                  onClick={() => handleSwitchManager(mgr)}
-                  className={`w-full p-3 rounded-xl border text-left transition flex items-center justify-between cursor-pointer ${
-                    managerId === mgr.manager_id
-                      ? "border-black bg-neutral-50 ring-1 ring-black"
-                      : "border-neutral-200 hover:border-neutral-400 bg-white"
-                  }`}
-                >
-                  <div>
-                    <p className="text-xs font-bold text-neutral-900">{mgr.name}</p>
-                    <p className="text-[11px] text-neutral-500">{mgr.role}</p>
-                    <span className="text-[10px] font-mono text-neutral-600 bg-neutral-100 px-1.5 py-0.5 rounded">
-                      {mgr.manager_id}
-                    </span>
-                  </div>
-                  {managerId === mgr.manager_id && (
-                    <BadgeCheck className="w-5 h-5 text-black" />
-                  )}
-                </button>
-              ))}
-            </div>
 
             {/* Custom input */}
             <form onSubmit={handleCustomSwitch} className="space-y-3">
               <div>
                 <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
-                  Or enter another Manager ID:
+                  Manager ID:
                 </label>
                 <input
                   type="text"

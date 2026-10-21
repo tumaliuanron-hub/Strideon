@@ -43,10 +43,10 @@ function DashboardContent() {
 
   // Determine which employee is logged in
   const [employee, setEmployee] = useState<EmployeeInfo>({
-    name: "Aaron Tumaliuan",
-    role: "Graphic Designer",
-    email: "aaron.tumaliuan@gmail.com",
-    id: "EMP-2026-904",
+    name: "Red Reyes",
+    role: "Product Specialist",
+    email: "tumaliuanron@gmail.com",
+    id: "EMP-2026-815",
     avatar: "/assets/avatar-aaron.png",
   });
 
@@ -106,16 +106,16 @@ function DashboardContent() {
         nameParam ||
         (typeof window !== "undefined" &&
           (localStorage.getItem("currentUserName") || localStorage.getItem("activationName"))) ||
-        "Aaron Tumaliuan";
+        "Red Reyes";
       const storedRole =
-        (typeof window !== "undefined" && localStorage.getItem("currentUserRole")) || "Graphic Designer";
+        (typeof window !== "undefined" && localStorage.getItem("currentUserRole")) || "Product Specialist";
       setEmployee({
         name: storedName,
         role: storedRole,
         email:
           (typeof window !== "undefined" && localStorage.getItem("currentUserEmail")) ||
-          "aaron.tumaliuan@gmail.com",
-        id: empParam || (typeof window !== "undefined" && localStorage.getItem("currentUserEmpId")) || "EMP-2026-904",
+          "tumaliuanron@gmail.com",
+        id: empParam || (typeof window !== "undefined" && localStorage.getItem("currentUserEmpId")) || "EMP-2026-815",
         avatar: "/assets/avatar-aaron.png",
       });
     }

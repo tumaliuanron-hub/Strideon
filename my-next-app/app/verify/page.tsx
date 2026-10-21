@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import emailjs from "@emailjs/browser";
+import { resendVerificationCode } from "@/lib/emailService";
 import { supabase } from "@/lib/supabase";
 import {
   ShieldCheck,
@@ -66,7 +66,7 @@ function VerifyAccountContent() {
     } else {
       const storedName =
         (typeof window !== "undefined" && localStorage.getItem("activationName")) ||
-        (employeeId.includes("815") ? "Red Reyes" : "Aaron Tumaliuan");
+        (employeeId.includes("815") ? "Red Reyes" : "Employee");
       router.push(
         `/dashboard?empId=${encodeURIComponent(employeeId)}&name=${encodeURIComponent(storedName)}`
       );
@@ -139,64 +139,28 @@ function VerifyAccountContent() {
     inputRefs.current[5]?.focus();
   };
 
-  // Resend code handler with EmailJS
+  // Resend code handler with EmailJS service
   const handleResendCode = async () => {
     if (!canResend) return;
     setResendCooldown(45);
     setCanResend(false);
 
-    const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
-    if (typeof window !== "undefined") {
-      localStorage.setItem("activationCode", randomCode);
-    }
-
     try {
-      const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID;
-      const templateId =
-        (typeof window !== "undefined" && localStorage.getItem("emailjsActiveTemplate")) ||
-        process.env.NEXT_PUBLIC_EMAILJS_SECOND_ACTIVATION_TEMPLATE_ID ||
-        process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID ||
-        "template_io88mhe";
-      const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY;
-      if (serviceId && templateId && publicKey) {
-        await emailjs.send(
-          serviceId,
-          templateId,
-          {
-            email: email,
-            name: typeof window !== "undefined" ? localStorage.getItem("activationName") || "Employee" : "Employee",
-            code: randomCode,
-            employee_id: employeeId || "EMP-NEW",
-          },
-          publicKey
-        );
+      const emailToSend = (
+        email ||
+        (typeof window !== "undefined" && localStorage.getItem("activationEmail")) ||
+        ""
+      ).trim();
+      const nameToSend =
+        (typeof window !== "undefined" && localStorage.getItem("activationName")) || "Employee";
 
-        // For Red Reyes, also dispatch copy to tumaliuanron@gmail.com
-        const storedName = typeof window !== "undefined" ? localStorage.getItem("activationName") || "" : "";
-        const isRed =
-          storedName.toLowerCase().includes("red") ||
-          employeeId.includes("815") ||
-          employeeId.toLowerCase().includes("red");
+      const result = await resendVerificationCode(emailToSend, nameToSend, employeeId || "EMP-NEW");
 
-        if (isRed && email.trim().toLowerCase() !== "tumaliuanron@gmail.com") {
-          try {
-            await emailjs.send(
-              serviceId,
-              templateId,
-              {
-                email: "tumaliuanron@gmail.com",
-                name: storedName || "Red Reyes",
-                code: randomCode,
-                employee_id: employeeId || "EMP-2026-815",
-              },
-              publicKey
-            );
-          } catch (copyErr) {
-            console.warn("Secondary resend copy error:", copyErr);
-          }
-        }
+      if (result.success) {
+        setResendNotice("A new 6-digit verification code has been dispatched to your email.");
+      } else {
+        setResendNotice(result.message || "New code generated! Please check your email.");
       }
-      setResendNotice("A new 6-digit verification code has been dispatched to your email.");
     } catch {
       setResendNotice("New code generated! Please check your email.");
     }
@@ -285,7 +249,7 @@ function VerifyAccountContent() {
       const targetName =
         (typeof window !== "undefined" && localStorage.getItem("activationName")) ||
         matchedRecord?.name ||
-        (targetEmpId.includes("815") ? "Red Reyes" : "Aaron Tumaliuan");
+        (targetEmpId.includes("815") ? "Red Reyes" : "Employee");
       const targetRole = targetEmpId.includes("815") ? "Product Specialist" : "Graphic Designer";
 
       if (typeof window !== "undefined") {
@@ -374,32 +338,20 @@ function VerifyAccountContent() {
             />
           </Link>
 
-          {/* Quick Demo Helper badge */}
-          <button
-            type="button"
-            onClick={handleAutofillCode}
-            className="text-[11px] font-medium tracking-wide uppercase px-2.5 py-1 rounded-full border border-neutral-800 bg-neutral-950/80 text-neutral-400 hover:text-white hover:border-neutral-700 transition flex items-center gap-1.5 cursor-pointer"
-            title="Click to fill test code 782419"
-          >
-            <Sparkles className="w-3 h-3 text-sky-400" />
-            <span>Fill Code (782419)</span>
-          </button>
         </header>
 
         {/* Middle: Verify Your Account Heading & Jordan Centerpiece */}
-        <div className="relative z-10 my-8 lg:my-auto flex flex-col items-start w-full">
+        <div className="relative z-10 my-8 lg:my-auto flex flex-col items-center justify-center text-center w-full">
           {/* Main Title & Tagline matching Strideon design language */}
-          <div className="max-w-md">
+          <div className="max-w-md flex flex-col items-center justify-center text-center">
             <h1 className="text-3xl sm:text-4xl lg:text-[46px] font-extrabold tracking-tight text-white leading-[1.12]">
-              Verify Your
-              <br />
-              Account
+              Verify Your Account
             </h1>
 
-            {/* Small accent line */}
-            <div className="w-10 h-[2px] bg-white/40 my-3.5" />
+            {/* Small accent line centered */}
+            <div className="w-10 h-[2px] bg-white/40 my-3.5 mx-auto" />
 
-            <p className="text-neutral-400 text-sm sm:text-[14.5px] leading-relaxed">
+            <p className="text-neutral-400 text-sm sm:text-[14.5px] leading-relaxed max-w-sm">
               Security verification required. Please enter the 6-digit confirmation code sent to your company email to finalize your account.
             </p>
           </div>
@@ -734,7 +686,7 @@ function VerifyAccountContent() {
                 onClick={() => {
                   const storedName =
                     (typeof window !== "undefined" && localStorage.getItem("activationName")) ||
-                    (employeeId.includes("815") ? "Red Reyes" : "Aaron Tumaliuan");
+                    (employeeId.includes("815") ? "Red Reyes" : "Employee");
                   router.push(
                     `/dashboard?empId=${encodeURIComponent(employeeId)}&name=${encodeURIComponent(storedName)}`
                   );

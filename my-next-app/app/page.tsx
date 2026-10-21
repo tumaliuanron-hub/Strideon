@@ -43,14 +43,6 @@ const REGISTERED_EMPLOYEES: EmployeeAccount[] = [
     validPasswords: ["Strideon#Red2026!", "Strideon#Permanent2026!", "Strideon#Excellence26"],
     template: "second",
   },
-  {
-    id: "EMP-2026-904",
-    aliases: ["EMP-2026-904", "EMP-904", "904261", "AARON", "AARON TUMALIUAN"],
-    name: "Aaron Tumaliuan",
-    email: "aaron.tumaliuan@gmail.com",
-    validPasswords: ["Strideon#TempPass26", "Strideon#Permanent2026!", "Strideon#Excellence26"],
-    template: "primary",
-  },
 ];
 
 function LoginPageContent() {
@@ -129,10 +121,10 @@ function LoginPageContent() {
       const fallbackManagers = [
         {
           id: "MGR-2026-101",
-          name: "Victoria Mendoza",
-          role: "Creative Director & Design Manager",
+          name: "Aaron Tumaliuan",
+          role: "Creative Director & Design Department Manager",
           department_name: "Creative & Design",
-          email: "victoria.mendoza@strideon.com",
+          email: "aaron.tumaliuan@gmail.com",
         },
         {
           id: "MGR-2026-102",
@@ -216,13 +208,8 @@ function LoginPageContent() {
     // Explicitly unactivated if set to false
     if (localFlag === "false") return false;
 
-    // Red Reyes requires activation & verification before accessing the dashboard
-    if (empKey.includes("815") || emp.name.toLowerCase().includes("red")) {
-      return false;
-    }
-
-    // Fallback for Aaron Tumaliuan
-    return localStorage.getItem("accountActivated") === "true";
+    // All employees require activation & verification before accessing the dashboard
+    return false;
   };
 
   // Check if returning from activation/verification
@@ -262,22 +249,22 @@ function LoginPageContent() {
     const trimmedId = employeeId.trim();
     const trimmedPass = password.trim();
 
-    // 1. Check if Employee ID is empty
+    // 1. Check if Employee ID is empty (walang nakalagay)
     if (!trimmedId) {
       setErrorField("employeeId");
       setErrorDetails({
-        title: "Employee is not existed",
-        subtitle: "Please enter your Employee ID. Try again.",
+        title: "Please enter your employee details",
+        subtitle: "Please enter your Employee ID to continue.",
       });
       return;
     }
 
-    // 2. Check if Password is empty
+    // 2. Check if Password is empty (walang naka-insert na password)
     if (!trimmedPass) {
       setErrorField("password");
       setErrorDetails({
-        title: "Incorrect id or password",
-        subtitle: "Please enter your password. Try again.",
+        title: "Please enter your password",
+        subtitle: "Please enter your password to continue.",
       });
       return;
     }
@@ -295,12 +282,12 @@ function LoginPageContent() {
     const matchedEmployee = REGISTERED_EMPLOYEES.find(
       (emp) =>
         emp.id.toUpperCase() === upperId ||
-        emp.aliases.some((alias) => alias.toUpperCase() === upperId) ||
-        storedActivatedId === upperId
+        emp.aliases.some((alias) => alias.toUpperCase() === upperId)
     );
 
-    // Condition A: Employee ID does not exist in any account
-    if (!matchedEmployee && storedActivatedId !== upperId) {
+    // Condition A: Employee ID does not exist in employee registry
+    // Department Managers attempting to log in here will be rejected as non-existent employee
+    if (!matchedEmployee) {
       setIsLoading(false);
       setErrorField("employeeId");
       setErrorDetails({
@@ -312,7 +299,7 @@ function LoginPageContent() {
 
     // Condition B: Employee exists, verify password
     const acceptedPasswords: string[] = [
-      ...(matchedEmployee?.validPasswords || []),
+      ...matchedEmployee.validPasswords,
       storedPassword,
       "Strideon#Permanent2026!",
       "Strideon#Excellence26",
@@ -331,35 +318,18 @@ function LoginPageContent() {
     }
 
     // Build the resolved employee info
-    const resolvedEmployee: EmployeeAccount = matchedEmployee || {
-      id: trimmedId,
-      aliases: [trimmedId],
-      name: upperId.includes("815") ? "Red Reyes" : "Aaron Tumaliuan",
-      email: upperId.includes("815") ? "tumaliuanron@gmail.com" : "aaron.tumaliuan@gmail.com",
-      validPasswords: acceptedPasswords,
-      template: upperId.includes("815") ? "second" : "primary",
-    };
+    const resolvedEmployee: EmployeeAccount = matchedEmployee;
 
     // Condition C: Verify if employee has activated & verified their account
     const isActivated = await checkEmployeeActivation(resolvedEmployee);
 
     if (!isActivated) {
-      // Employee has NOT activated & verified yet!
-      setIsLoading(false);
-      setErrorField("employeeId");
-      setErrorDetails({
-        title: "Account Not Activated",
-        subtitle: `${resolvedEmployee.name}'s account has not been activated and verified yet. Redirecting to activate your account...`,
-      });
-      setSuccessMessage(
-        `Account pending activation. Redirecting ${resolvedEmployee.name} to the activation page...`
+      // Employee has NOT activated & verified yet! Directly redirect immediately to activation page without pre-filling email
+      setErrorField(null);
+      setErrorDetails(null);
+      router.push(
+        `/activate?empId=${encodeURIComponent(resolvedEmployee.id)}&name=${encodeURIComponent(resolvedEmployee.name)}`
       );
-
-      setTimeout(() => {
-        router.push(
-          `/activate?empId=${encodeURIComponent(resolvedEmployee.id)}&name=${encodeURIComponent(resolvedEmployee.name)}&email=${encodeURIComponent(resolvedEmployee.email)}&template=${resolvedEmployee.template}`
-        );
-      }, 1500);
       return;
     }
 
@@ -388,28 +358,6 @@ function LoginPageContent() {
     }, 500);
   };
 
-  const handleAutofillDemo = (who: "red" | "aaron" = "red") => {
-    setErrorField(null);
-    setErrorDetails(null);
-    setSuccessMessage("");
-    if (who === "red") {
-      const isRedActive =
-        typeof window !== "undefined" &&
-        localStorage.getItem("accountActivated_EMP-2026-815") === "true";
-      setEmployeeId("EMP-2026-815");
-      setIsAccountActivated(isRedActive);
-      setPassword(isRedActive ? "Strideon#Permanent2026!" : "Strideon#Red2026!");
-    } else {
-      const isAaronActive =
-        typeof window !== "undefined" &&
-        (localStorage.getItem("accountActivated_EMP-2026-904") === "true" ||
-          (localStorage.getItem("accountActivated") === "true" &&
-            !localStorage.getItem("activatedEmployeeId")?.includes("815")));
-      setEmployeeId("EMP-2026-904");
-      setIsAccountActivated(isAaronActive);
-      setPassword(isAaronActive ? "Strideon#Permanent2026!" : "Strideon#TempPass26");
-    }
-  };
 
   const handleForgotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -444,46 +392,16 @@ function LoginPageContent() {
               className="h-auto w-[180px] sm:w-[210px] object-contain drop-shadow-[0_2px_10px_rgba(255,255,255,0.08)]"
             />
           </div>
-
-          {/* Quick Demo Helper badges */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <button
-              type="button"
-              onClick={() => handleAutofillDemo("red")}
-              className={`text-[11px] font-medium tracking-wide uppercase px-2.5 py-1 rounded-full border transition flex items-center gap-1 cursor-pointer ${
-                employeeId === "EMP-2026-815"
-                  ? "border-emerald-500/70 bg-emerald-950/70 text-emerald-300 shadow-sm"
-                  : "border-neutral-800 bg-neutral-950/80 text-neutral-400 hover:text-white hover:border-neutral-700"
-              }`}
-              title="Test with Red Reyes (Template 2: io88mhe)"
-            >
-              <Sparkles className="w-3 h-3 text-emerald-400" />
-              <span>Red Reyes</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleAutofillDemo("aaron")}
-              className={`text-[11px] font-medium tracking-wide uppercase px-2.5 py-1 rounded-full border transition flex items-center gap-1 cursor-pointer ${
-                employeeId === "EMP-2026-904"
-                  ? "border-sky-500/70 bg-sky-950/70 text-sky-300 shadow-sm"
-                  : "border-neutral-800 bg-neutral-950/80 text-neutral-400 hover:text-white hover:border-neutral-700"
-              }`}
-              title="Test with Aaron Tumaliuan (Template 1: wyb7b2p)"
-            >
-              <span>Aaron T.</span>
-            </button>
-          </div>
         </header>
 
         {/* Middle: Welcome message & Jordan Jumpman Centerpiece */}
-        <div className="relative z-10 my-8 lg:my-auto flex flex-col items-start w-full">
+        <div className="relative z-10 my-8 lg:my-auto flex flex-col items-center justify-center text-center w-full">
           {/* Welcome Text */}
-          <div className="max-w-md">
+          <div className="max-w-md flex flex-col items-center justify-center text-center">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-[1.15]">
               Welcome Back!
             </h1>
-            <p className="mt-3 text-neutral-400 text-sm sm:text-[15px] leading-relaxed">
+            <p className="mt-3 text-neutral-400 text-sm sm:text-[15px] leading-relaxed max-w-sm">
               Log into your Strideon account to continue your journey with us.
             </p>
           </div>
@@ -565,16 +483,8 @@ function LoginPageContent() {
       {/* RIGHT SECTION (SLEEK LIGHT LOGIN FORM CONTAINER)         */}
       {/* ======================================================== */}
       <section className="w-full lg:w-[52%] xl:w-[50%] bg-[#f4f5f8] text-neutral-900 flex flex-col justify-between items-center min-h-[640px] lg:min-h-screen p-6 sm:p-10 lg:p-12">
-        {/* Top bar info with direct link to activation */}
-        <div className="w-full flex justify-between items-center">
-          <Link
-            href="/activate"
-            className="text-xs font-medium text-neutral-500 hover:text-neutral-900 flex items-center gap-1 transition group"
-          >
-            <span>First time? Activate Account</span>
-            <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-          </Link>
-
+        {/* Top bar info */}
+        <div className="w-full flex justify-end items-center">
           <span className="text-[11px] font-semibold text-neutral-400 tracking-wider uppercase">
             Portal v2.6
           </span>
@@ -819,15 +729,7 @@ function LoginPageContent() {
               </button>
             </div>
 
-            <div className="text-xs text-neutral-500">
-              <span>Don&apos;t have an Account yet? </span>
-              <Link
-                href="/activate"
-                className="font-bold text-neutral-900 hover:underline cursor-pointer"
-              >
-                Create one
-              </Link>
-            </div>
+
 
             <div className="pt-2 text-[11px] text-neutral-400 leading-normal">
               Need help? Contact our HR department
@@ -1059,45 +961,6 @@ function LoginPageContent() {
                     </div>
                   </div>
 
-                  {/* Quick Select Registered Managers */}
-                  <div className="pt-1">
-                    <span className="text-[11px] font-medium text-neutral-400 block mb-1.5">
-                      Registered Department Managers:
-                    </span>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setManagerIdInput("MGR-2026-101");
-                          setManagerError("");
-                        }}
-                        className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border transition text-left cursor-pointer ${
-                          managerIdInput === "MGR-2026-101"
-                            ? "border-amber-500 bg-amber-50 text-amber-900 font-semibold"
-                            : "border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-700"
-                        }`}
-                      >
-                        <span className="font-mono font-bold">MGR-2026-101</span>
-                        <span className="text-neutral-400 ml-1.5 font-normal">Victoria M. (Design)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setManagerIdInput("MGR-2026-102");
-                          setManagerError("");
-                        }}
-                        className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border transition text-left cursor-pointer ${
-                          managerIdInput === "MGR-2026-102"
-                            ? "border-amber-500 bg-amber-50 text-amber-900 font-semibold"
-                            : "border-neutral-200 bg-neutral-50 hover:bg-neutral-100 text-neutral-700"
-                        }`}
-                      >
-                        <span className="font-mono font-bold">MGR-2026-102</span>
-                        <span className="text-neutral-400 ml-1.5 font-normal">Marcus V. (Product)</span>
-                      </button>
-                    </div>
-                  </div>
 
                   {/* Error Banner */}
                   {managerError && (

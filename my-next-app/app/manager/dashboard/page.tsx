@@ -314,8 +314,8 @@ function ManagerDashboardContent() {
   const [activeTab, setActiveTab] = useState<ManagerTab>(initialTab);
 
   // Manager identity
-  const [managerName, setManagerName] = useState("Daniel Padilla");
-  const [managerRole, setManagerRole] = useState("Department Manager");
+  const [managerName, setManagerName] = useState("Aaron Tumaliuan");
+  const [managerRole, setManagerRole] = useState("Creative Director & Design Department Manager");
   const [managerId, setManagerId] = useState("MGR-2026-101");
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
